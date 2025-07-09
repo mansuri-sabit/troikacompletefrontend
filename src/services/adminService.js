@@ -1,4 +1,4 @@
-import api from './api';
+import api from './adminApi';
 
 export const adminService = {
   // Dashboard Statistics
