@@ -176,7 +176,7 @@ const Login = ({ onLoginSuccess }) => {
               value={formData.email}
               onChange={handleChange}
               className={styles.input}
-              placeholder="admin@troikatech.com"
+              placeholder="admin@troikachatbot.com"
               required
               autoComplete="email"
               disabled={loading}
