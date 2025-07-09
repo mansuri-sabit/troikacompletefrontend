@@ -45,7 +45,7 @@ const AdminDashboard = ({ onLogout }) => {
   const navigate = useNavigate();
   
   // ✅ Backend Live URL Configuration
-  const API_BASE_URL = 'https://completetroikabackend.onrender.com/api';
+  const API_BASE_URL = 'https://completetroikabackend.onrender.com/';
   
   // State Management
   const [stats, setStats] = useState({
