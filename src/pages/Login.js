@@ -1,6 +1,40 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import styles from './Login.module.css';
+
+// Configure axios defaults
+const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'https://completetroikabackend.onrender.com',
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for logging
+api.interceptors.request.use(
+  (config) => {
+    console.log('🔄 API Request:', config.method?.toUpperCase(), config.url);
+    return config;
+  },
+  (error) => {
+    console.error('❌ Request Error:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for error handling
+api.interceptors.response.use(
+  (response) => {
+    console.log('✅ API Response:', response.status, response.data);
+    return response;
+  },
+  (error) => {
+    console.error('❌ Response Error:', error.response?.data || error.message);
+    return Promise.reject(error);
+  }
+);
 
 const Login = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
@@ -28,52 +62,85 @@ const Login = ({ onLoginSuccess }) => {
     try {
       console.log('🔄 Attempting login with:', formData.email);
       
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+      // Use axios for the login request
+      const response = await api.post('/api/auth/login', formData);
+      const data = response.data;
 
-      const data = await response.json();
       console.log('📥 Login response:', data);
 
-      if (response.ok) {
-        // ✅ Enhanced token storage with validation
-        if (data.token && data.user) {
-          localStorage.setItem('token', data.token);
-          localStorage.setItem('user', JSON.stringify(data.user));
-          
-          // ✅ Verify storage
-          const storedToken = localStorage.getItem('token');
-          const storedUser = localStorage.getItem('user');
-          
-          console.log('✅ Token stored successfully:', storedToken ? storedToken.substring(0, 20) + '...' : 'FAILED');
-          console.log('✅ User stored successfully:', storedUser ? JSON.parse(storedUser) : 'FAILED');
-          
-          // Trigger authentication state update
-          if (onLoginSuccess) {
-            onLoginSuccess();
-          }
-          
-          // Small delay to ensure state update
-          setTimeout(() => {
-            navigate('/admin/dashboard');
-          }, 100);
-        } else {
-          setError('Invalid response from server. Missing token or user data.');
+      // Check if response contains required data
+      if (data.token && data.user) {
+        // Store authentication data
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Verify storage
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
+        console.log('✅ Token stored successfully:', storedToken ? storedToken.substring(0, 20) + '...' : 'FAILED');
+        console.log('✅ User stored successfully:', storedUser ? JSON.parse(storedUser) : 'FAILED');
+        
+        // Trigger authentication state update
+        if (onLoginSuccess) {
+          onLoginSuccess();
         }
+        
+        // Navigate to dashboard with small delay
+        setTimeout(() => {
+          navigate('/admin/dashboard');
+        }, 100);
       } else {
-        console.error('❌ Login failed:', data);
-        setError(data.error || 'Login failed. Please try again.');
+        setError('Invalid response from server. Missing token or user data.');
       }
     } catch (error) {
-      console.error('❌ Login network error:', error);
-      setError('Network error. Please check your connection and try again.');
+      console.error('❌ Login error:', error);
+      
+      // Handle different types of errors
+      if (error.response) {
+        // Server responded with error status
+        const { status, data } = error.response;
+        
+        switch (status) {
+          case 400:
+            setError(data.error || 'Invalid request. Please check your input.');
+            break;
+          case 401:
+            setError(data.error || 'Invalid credentials. Please try again.');
+            break;
+          case 403:
+            setError(data.error || 'Access denied. Admin privileges required.');
+            break;
+          case 429:
+            setError('Too many login attempts. Please try again later.');
+            break;
+          case 500:
+            setError('Server error. Please try again later.');
+            break;
+          default:
+            setError(data.error || 'Login failed. Please try again.');
+        }
+      } else if (error.request) {
+        // Network error
+        setError('Network error. Please check your connection and try again.');
+      } else if (error.code === 'ECONNABORTED') {
+        // Timeout error
+        setError('Request timeout. Please try again.');
+      } else {
+        // Other errors
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDemoLogin = () => {
+    setFormData({
+      email: 'admin@troikatech.com',
+      password: 'Admin@123456'
+    });
+    setError('');
   };
 
   return (
@@ -112,6 +179,7 @@ const Login = ({ onLoginSuccess }) => {
               placeholder="admin@troikatech.com"
               required
               autoComplete="email"
+              disabled={loading}
             />
           </div>
 
@@ -129,6 +197,7 @@ const Login = ({ onLoginSuccess }) => {
               placeholder="Enter your password"
               required
               autoComplete="current-password"
+              disabled={loading}
             />
           </div>
 
@@ -156,11 +225,19 @@ const Login = ({ onLoginSuccess }) => {
             <div className={styles.divider}>
               <span>or</span>
             </div>
-            <p className={styles.demoCredentials}>
-              <strong>Demo Credentials:</strong><br />
-              Email: admin@troikatech.com<br />
-              Password: Admin@123456
-            </p>
+            <div className={styles.demoCredentials}>
+              <p><strong>Demo Credentials:</strong></p>
+              <p>Email: admin@troikatech.com</p>
+              <p>Password: Admin@123456</p>
+              <button 
+                type="button"
+                onClick={handleDemoLogin}
+                className={styles.demoButton}
+                disabled={loading}
+              >
+                Use Demo Credentials
+              </button>
+            </div>
           </div>
         </form>
       </div>
