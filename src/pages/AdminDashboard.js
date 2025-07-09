@@ -66,8 +66,8 @@ const AdminDashboard = ({ onLogout }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
 
-  // Chart Data - Dynamic based on real stats
-  const usageData = [
+  // Chart Data - will be updated with real data
+  const [usageData, setUsageData] = useState([
     { name: 'Mon', tokens: 12000, cost: 24.50, requests: 450 },
     { name: 'Tue', tokens: 15000, cost: 30.75, requests: 520 },
     { name: 'Wed', tokens: 18000, cost: 36.20, requests: 680 },
@@ -75,7 +75,13 @@ const AdminDashboard = ({ onLogout }) => {
     { name: 'Fri', tokens: 22000, cost: 45.10, requests: 750 },
     { name: 'Sat', tokens: 16000, cost: 32.80, requests: 480 },
     { name: 'Sun', tokens: 19000, cost: 38.95, requests: 620 }
-  ];
+  ]);
+
+  const [projectStatusData, setProjectStatusData] = useState([
+    { name: 'Active', value: 65, color: '#10B981', count: 0 },
+    { name: 'Suspended', value: 15, color: '#F59E0B', count: 0 },
+    { name: 'Expired', value: 20, color: '#EF4444', count: 0 }
+  ]);
 
   const revenueData = [
     { month: 'Jan', revenue: 12000, subscriptions: 45, growth: 5.2 },
@@ -84,28 +90,6 @@ const AdminDashboard = ({ onLogout }) => {
     { month: 'Apr', revenue: 22000, subscriptions: 68, growth: 15.7 },
     { month: 'May', revenue: 25000, subscriptions: 75, growth: 18.9 },
     { month: 'Jun', revenue: 28000, subscriptions: 82, growth: 22.1 }
-  ];
-
-  // Dynamic project status data based on real stats
-  const projectStatusData = [
-    { 
-      name: 'Active', 
-      value: Math.round((stats.activeProjects / Math.max(stats.totalProjects, 1)) * 100), 
-      color: '#10B981',
-      count: stats.activeProjects
-    },
-    { 
-      name: 'Suspended', 
-      value: Math.round((stats.suspendedProjects / Math.max(stats.totalProjects, 1)) * 100), 
-      color: '#F59E0B',
-      count: stats.suspendedProjects
-    },
-    { 
-      name: 'Expired', 
-      value: Math.round((stats.expiredProjects / Math.max(stats.totalProjects, 1)) * 100), 
-      color: '#EF4444',
-      count: stats.expiredProjects
-    }
   ];
 
   // Authentication Check
@@ -148,52 +132,53 @@ const AdminDashboard = ({ onLogout }) => {
       
       if (dashboardResponse.ok) {
         const dashboardData = await dashboardResponse.json();
-        setStats(dashboardData.stats || {});
+        
+        // Update stats with real data
+        setStats({
+          totalProjects: dashboardData.stats.totalProjects || 0,
+          activeProjects: dashboardData.stats.activeProjects || 0,
+          suspendedProjects: dashboardData.stats.suspendedProjects || 0,
+          expiredProjects: dashboardData.stats.expiredProjects || 0,
+          totalUsers: dashboardData.stats.totalUsers || 0,
+          monthlyRevenue: dashboardData.stats.monthlyRevenue || 0,
+          tokensUsed: dashboardData.stats.tokensUsed || 0,
+          apiCalls: dashboardData.stats.apiCalls || 0,
+          avgResponseTime: dashboardData.stats.avgResponseTime || 0,
+          successRate: dashboardData.stats.successRate || 0
+        });
+
+        // Update project status data with real percentages
+        const total = dashboardData.stats.totalProjects || 1;
+        setProjectStatusData([
+          { 
+            name: 'Active', 
+            value: Math.round((dashboardData.stats.activeProjects / total) * 100), 
+            color: '#10B981',
+            count: dashboardData.stats.activeProjects || 0
+          },
+          { 
+            name: 'Suspended', 
+            value: Math.round((dashboardData.stats.suspendedProjects / total) * 100), 
+            color: '#F59E0B',
+            count: dashboardData.stats.suspendedProjects || 0
+          },
+          { 
+            name: 'Expired', 
+            value: Math.round((dashboardData.stats.expiredProjects / total) * 100), 
+            color: '#EF4444',
+            count: dashboardData.stats.expiredProjects || 0
+          }
+        ]);
+
+        // Set projects data
         setProjects(dashboardData.projects || []);
-        console.log('✅ Dashboard data fetched:', dashboardData.stats);
+
+        console.log('✅ Dashboard data fetched successfully:', dashboardData.stats);
       } else if (dashboardResponse.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/login');
         return;
-      } else {
-        console.error('❌ Failed to fetch dashboard data');
-        // Set mock data for development
-        setStats({
-          totalProjects: 156,
-          activeProjects: 142,
-          suspendedProjects: 8,
-          expiredProjects: 6,
-          totalUsers: 1247,
-          monthlyRevenue: 28500,
-          tokensUsed: 2847392,
-          apiCalls: 45782,
-          avgResponseTime: 1.2,
-          successRate: 98.5
-        });
-        
-        setProjects([
-          { 
-            id: 1, 
-            project_id: 'proj_1704067200_abc123',
-            name: 'TechCorp Chatbot', 
-            status: 'active', 
-            total_tokens_used: 45000, 
-            monthly_token_limit: 100000,
-            created_at: new Date().toISOString(),
-            client_id: 'admin@techcorp.com'
-          },
-          { 
-            id: 2, 
-            project_id: 'proj_1704067300_def456',
-            name: 'E-commerce Support', 
-            status: 'active', 
-            total_tokens_used: 78000, 
-            monthly_token_limit: 100000,
-            created_at: new Date().toISOString(),
-            client_id: 'support@ecommerce.com'
-          }
-        ]);
       }
 
       // Fetch notifications
@@ -204,35 +189,58 @@ const AdminDashboard = ({ onLogout }) => {
       if (notificationsResponse.ok) {
         const notificationsData = await notificationsResponse.json();
         setNotifications(notificationsData.notifications || []);
-      } else {
-        setNotifications([
-          { id: 1, type: 'warning', message: '3 projects expiring in 7 days', unread: true },
-          { id: 2, type: 'info', message: 'System maintenance scheduled for tomorrow', unread: true }
-        ]);
       }
 
-      // Set mock recent activity
+    } catch (error) {
+      console.error('Failed to fetch dashboard data:', error);
+      
+      // Fallback to mock data for development
+      setStats({
+        totalProjects: 156,
+        activeProjects: 142,
+        suspendedProjects: 8,
+        expiredProjects: 6,
+        totalUsers: 1247,
+        monthlyRevenue: 28500,
+        tokensUsed: 2847392,
+        apiCalls: 45782,
+        avgResponseTime: 1.2,
+        successRate: 98.5
+      });
+      
+      setProjects([
+        { 
+          id: 1, 
+          project_id: 'proj_1704067200_abc123',
+          name: 'TechCorp Chatbot', 
+          status: 'active', 
+          total_tokens_used: 45000, 
+          monthly_token_limit: 100000,
+          created_at: new Date().toISOString(),
+          client_id: 'admin@techcorp.com'
+        },
+        { 
+          id: 2, 
+          project_id: 'proj_1704067300_def456',
+          name: 'E-commerce Support', 
+          status: 'active', 
+          total_tokens_used: 78000, 
+          monthly_token_limit: 100000,
+          created_at: new Date().toISOString(),
+          client_id: 'support@ecommerce.com'
+        }
+      ]);
+
       setRecentActivity([
         { id: 1, type: 'project_created', message: 'New project "TechCorp Chatbot" created', timestamp: new Date().toISOString() },
         { id: 2, type: 'user_registered', message: 'New user registered: admin@techcorp.com', timestamp: new Date().toISOString() },
         { id: 3, type: 'token_limit_reached', message: 'Project "E-commerce Support" reached 80% token limit', timestamp: new Date().toISOString() }
       ]);
 
-    } catch (error) {
-      console.error('❌ Error fetching dashboard data:', error);
-      // Set fallback data
-      setStats({
-        totalProjects: 0,
-        activeProjects: 0,
-        suspendedProjects: 0,
-        expiredProjects: 0,
-        totalUsers: 0,
-        monthlyRevenue: 0,
-        tokensUsed: 0,
-        apiCalls: 0,
-        avgResponseTime: 0,
-        successRate: 0
-      });
+      setNotifications([
+        { id: 1, type: 'warning', message: '3 projects expiring in 7 days', unread: true },
+        { id: 2, type: 'info', message: 'System maintenance scheduled for tomorrow', unread: true }
+      ]);
     } finally {
       setLoading(false);
     }
@@ -483,7 +491,7 @@ const AdminDashboard = ({ onLogout }) => {
             title="Total Projects"
             value={stats.totalProjects}
             icon={MessageSquare}
-            change="+12%"
+            change={stats.totalProjects > 0 ? `+${((stats.activeProjects / stats.totalProjects) * 100).toFixed(1)}%` : "0%"}
             changeType="positive"
             color="blue"
             onClick={handleViewAllProjects}
@@ -492,7 +500,7 @@ const AdminDashboard = ({ onLogout }) => {
             title="Active Projects"
             value={stats.activeProjects}
             icon={CheckCircle}
-            change="+8%"
+            change={stats.totalProjects > 0 ? `${((stats.activeProjects / stats.totalProjects) * 100).toFixed(1)}% of total` : "0%"}
             changeType="positive"
             color="green"
             onClick={handleViewAllProjects}
@@ -522,12 +530,12 @@ const AdminDashboard = ({ onLogout }) => {
             color="orange"
           />
           <StatCard
-            title="Avg Response Time"
-            value={`${stats.avgResponseTime}s`}
-            icon={Clock}
-            change="-0.2s"
+            title="Success Rate"
+            value={`${stats.successRate}%`}
+            icon={CheckCircle}
+            change="+0.5%"
             changeType="positive"
-            color="teal"
+            color="green"
           />
         </div>
 
@@ -709,13 +717,13 @@ const AdminDashboard = ({ onLogout }) => {
           <div className={styles.actionCard}>
             <AlertTriangle className={styles.actionIcon} />
             <h4 className={styles.actionTitle}>Expiring Soon</h4>
-            <p className={styles.actionDescription}>5 projects expiring in next 7 days</p>
+            <p className={styles.actionDescription}>{stats.expiredProjects} projects need attention</p>
           </div>
           
           <div className={styles.actionCard}>
             <XCircle className={styles.actionIcon} />
             <h4 className={styles.actionTitle}>High Usage</h4>
-            <p className={styles.actionDescription}>3 projects over 80% token limit</p>
+            <p className={styles.actionDescription}>Monitor token consumption</p>
           </div>
           
           <div className={styles.actionCard}>
