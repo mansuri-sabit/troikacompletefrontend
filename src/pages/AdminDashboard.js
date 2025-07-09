@@ -44,6 +44,9 @@ import styles from './AdminDashboard.module.css';
 const AdminDashboard = ({ onLogout }) => {
   const navigate = useNavigate();
   
+  // ✅ Backend Live URL Configuration
+  const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://completetroikabackend.onrender.com';
+  
   // State Management
   const [stats, setStats] = useState({
     totalProjects: 0,
@@ -65,32 +68,6 @@ const AdminDashboard = ({ onLogout }) => {
   const [timeRange, setTimeRange] = useState('7d');
   const [searchTerm, setSearchTerm] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
-
-  // Chart Data - will be updated with real data
-  const [usageData, setUsageData] = useState([
-    { name: 'Mon', tokens: 12000, cost: 24.50, requests: 450 },
-    { name: 'Tue', tokens: 15000, cost: 30.75, requests: 520 },
-    { name: 'Wed', tokens: 18000, cost: 36.20, requests: 680 },
-    { name: 'Thu', tokens: 14000, cost: 28.90, requests: 390 },
-    { name: 'Fri', tokens: 22000, cost: 45.10, requests: 750 },
-    { name: 'Sat', tokens: 16000, cost: 32.80, requests: 480 },
-    { name: 'Sun', tokens: 19000, cost: 38.95, requests: 620 }
-  ]);
-
-  const [projectStatusData, setProjectStatusData] = useState([
-    { name: 'Active', value: 65, color: '#10B981', count: 0 },
-    { name: 'Suspended', value: 15, color: '#F59E0B', count: 0 },
-    { name: 'Expired', value: 20, color: '#EF4444', count: 0 }
-  ]);
-
-  const revenueData = [
-    { month: 'Jan', revenue: 12000, subscriptions: 45, growth: 5.2 },
-    { month: 'Feb', revenue: 15000, subscriptions: 52, growth: 8.1 },
-    { month: 'Mar', revenue: 18000, subscriptions: 61, growth: 12.3 },
-    { month: 'Apr', revenue: 22000, subscriptions: 68, growth: 15.7 },
-    { month: 'May', revenue: 25000, subscriptions: 75, growth: 18.9 },
-    { month: 'Jun', revenue: 28000, subscriptions: 82, growth: 22.1 }
-  ];
 
   // Authentication Check
   const checkAuthToken = () => {
@@ -117,84 +94,90 @@ const AdminDashboard = ({ onLogout }) => {
     }
   };
 
-  // Data Fetching Functions
+  // ✅ Enhanced Data Fetching with Live Backend
   const fetchDashboardData = async () => {
     if (!checkAuthToken()) return;
     
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
+      const headers = {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      };
+      
+      console.log('🔄 Fetching dashboard data from:', API_BASE_URL);
       
       // Fetch dashboard statistics
-      const dashboardResponse = await fetch('/api/admin/dashboard', {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const statsResponse = await fetch(`${API_BASE_URL}/api/admin/dashboard`, {
+        headers
       });
       
-      if (dashboardResponse.ok) {
-        const dashboardData = await dashboardResponse.json();
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json();
+        console.log('✅ Dashboard stats received:', statsData);
         
-        // Update stats with real data
         setStats({
-          totalProjects: dashboardData.stats.totalProjects || 0,
-          activeProjects: dashboardData.stats.activeProjects || 0,
-          suspendedProjects: dashboardData.stats.suspendedProjects || 0,
-          expiredProjects: dashboardData.stats.expiredProjects || 0,
-          totalUsers: dashboardData.stats.totalUsers || 0,
-          monthlyRevenue: dashboardData.stats.monthlyRevenue || 0,
-          tokensUsed: dashboardData.stats.tokensUsed || 0,
-          apiCalls: dashboardData.stats.apiCalls || 0,
-          avgResponseTime: dashboardData.stats.avgResponseTime || 0,
-          successRate: dashboardData.stats.successRate || 0
+          totalProjects: statsData.stats?.totalProjects || 0,
+          activeProjects: statsData.stats?.activeProjects || 0,
+          suspendedProjects: statsData.stats?.suspendedProjects || 0,
+          expiredProjects: statsData.stats?.expiredProjects || 0,
+          totalUsers: statsData.stats?.totalUsers || 0,
+          monthlyRevenue: statsData.stats?.monthlyRevenue || 0,
+          tokensUsed: statsData.stats?.tokensUsed || 0,
+          apiCalls: statsData.stats?.apiCalls || 0,
+          avgResponseTime: statsData.stats?.avgResponseTime || 0,
+          successRate: statsData.stats?.successRate || 0
         });
-
-        // Update project status data with real percentages
-        const total = dashboardData.stats.totalProjects || 1;
-        setProjectStatusData([
-          { 
-            name: 'Active', 
-            value: Math.round((dashboardData.stats.activeProjects / total) * 100), 
-            color: '#10B981',
-            count: dashboardData.stats.activeProjects || 0
-          },
-          { 
-            name: 'Suspended', 
-            value: Math.round((dashboardData.stats.suspendedProjects / total) * 100), 
-            color: '#F59E0B',
-            count: dashboardData.stats.suspendedProjects || 0
-          },
-          { 
-            name: 'Expired', 
-            value: Math.round((dashboardData.stats.expiredProjects / total) * 100), 
-            color: '#EF4444',
-            count: dashboardData.stats.expiredProjects || 0
-          }
-        ]);
-
-        // Set projects data
-        setProjects(dashboardData.projects || []);
-
-        console.log('✅ Dashboard data fetched successfully:', dashboardData.stats);
-      } else if (dashboardResponse.status === 401) {
+        
+        // Set projects from dashboard response
+        if (statsData.projects) {
+          setProjects(statsData.projects);
+        }
+      } else if (statsResponse.status === 401) {
+        console.error('❌ Unauthorized access - redirecting to login');
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/login');
         return;
+      } else {
+        console.error('❌ Failed to fetch dashboard stats:', statsResponse.status);
+      }
+
+      // Fetch recent projects if not included in dashboard response
+      try {
+        const projectsResponse = await fetch(`${API_BASE_URL}/api/admin/projects?limit=5`, {
+          headers
+        });
+        
+        if (projectsResponse.ok) {
+          const projectsData = await projectsResponse.json();
+          setProjects(projectsData.projects || []);
+          console.log('✅ Recent projects fetched:', projectsData.projects?.length || 0);
+        }
+      } catch (projectError) {
+        console.error('⚠️ Failed to fetch recent projects:', projectError);
       }
 
       // Fetch notifications
-      const notificationsResponse = await fetch('/api/admin/notifications?unread=true', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (notificationsResponse.ok) {
-        const notificationsData = await notificationsResponse.json();
-        setNotifications(notificationsData.notifications || []);
+      try {
+        const notificationsResponse = await fetch(`${API_BASE_URL}/api/admin/notifications?unread=true`, {
+          headers
+        });
+        
+        if (notificationsResponse.ok) {
+          const notificationsData = await notificationsResponse.json();
+          setNotifications(notificationsData.notifications || []);
+          console.log('✅ Notifications fetched:', notificationsData.notifications?.length || 0);
+        }
+      } catch (notifError) {
+        console.error('⚠️ Failed to fetch notifications:', notifError);
       }
 
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error);
+      console.error('❌ Network error fetching dashboard data:', error);
       
-      // Fallback to mock data for development
+      // Set fallback mock data for development
       setStats({
         totalProjects: 156,
         activeProjects: 142,
@@ -231,12 +214,6 @@ const AdminDashboard = ({ onLogout }) => {
         }
       ]);
 
-      setRecentActivity([
-        { id: 1, type: 'project_created', message: 'New project "TechCorp Chatbot" created', timestamp: new Date().toISOString() },
-        { id: 2, type: 'user_registered', message: 'New user registered: admin@techcorp.com', timestamp: new Date().toISOString() },
-        { id: 3, type: 'token_limit_reached', message: 'Project "E-commerce Support" reached 80% token limit', timestamp: new Date().toISOString() }
-      ]);
-
       setNotifications([
         { id: 1, type: 'warning', message: '3 projects expiring in 7 days', unread: true },
         { id: 2, type: 'info', message: 'System maintenance scheduled for tomorrow', unread: true }
@@ -245,6 +222,28 @@ const AdminDashboard = ({ onLogout }) => {
       setLoading(false);
     }
   };
+
+  // ✅ Real-time Project Status Data
+  const projectStatusData = [
+    { 
+      name: 'Active', 
+      value: Math.round((stats.activeProjects / Math.max(stats.totalProjects, 1)) * 100), 
+      color: '#10B981',
+      count: stats.activeProjects
+    },
+    { 
+      name: 'Suspended', 
+      value: Math.round((stats.suspendedProjects / Math.max(stats.totalProjects, 1)) * 100), 
+      color: '#F59E0B',
+      count: stats.suspendedProjects
+    },
+    { 
+      name: 'Expired', 
+      value: Math.round((stats.expiredProjects / Math.max(stats.totalProjects, 1)) * 100), 
+      color: '#EF4444',
+      count: stats.expiredProjects
+    }
+  ];
 
   // Navigation Functions
   const handleCreateProject = () => {
@@ -262,11 +261,15 @@ const AdminDashboard = ({ onLogout }) => {
     navigate('/login');
   };
 
+  // ✅ Export Data with Live Backend
   const handleExportData = async (type) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/admin/export/${type}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+      const response = await fetch(`${API_BASE_URL}/api/admin/export/${type}`, {
+        headers: { 
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
       });
       
       if (response.ok) {
@@ -279,9 +282,12 @@ const AdminDashboard = ({ onLogout }) => {
         a.click();
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
+        console.log('✅ Export completed:', type);
+      } else {
+        throw new Error(`Export failed with status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error('❌ Export failed:', error);
       alert('Export failed. Please try again.');
     }
   };
@@ -329,7 +335,7 @@ const AdminDashboard = ({ onLogout }) => {
         <td className={styles.tableCell}>
           <div className={styles.usageInfo}>
             <div className={styles.usageText}>
-              {project.total_tokens_used?.toLocaleString()} / {project.monthly_token_limit?.toLocaleString()}
+              {project.total_tokens_used?.toLocaleString() || 0} / {project.monthly_token_limit?.toLocaleString() || 0}
             </div>
             <div className={styles.progressBar}>
               <div 
@@ -358,22 +364,6 @@ const AdminDashboard = ({ onLogout }) => {
     );
   };
 
-  const ActivityItem = ({ activity }) => (
-    <div className={styles.activityItem}>
-      <div className={`${styles.activityIcon} ${styles[activity.type]}`}>
-        {activity.type === 'project_created' && <Plus size={16} />}
-        {activity.type === 'user_registered' && <Users size={16} />}
-        {activity.type === 'token_limit_reached' && <AlertTriangle size={16} />}
-      </div>
-      <div className={styles.activityContent}>
-        <p className={styles.activityMessage}>{activity.message}</p>
-        <p className={styles.activityTime}>
-          {new Date(activity.timestamp).toLocaleString()}
-        </p>
-      </div>
-    </div>
-  );
-
   // Effects
   useEffect(() => {
     if (!checkAuthToken()) return;
@@ -385,7 +375,7 @@ const AdminDashboard = ({ onLogout }) => {
       if (checkAuthToken()) {
         fetchDashboardData();
       }
-    }, 30000); // Refresh every 30 seconds
+    }, 60000); // Refresh every 60 seconds for live data
 
     return () => clearInterval(interval);
   }, []);
@@ -491,7 +481,7 @@ const AdminDashboard = ({ onLogout }) => {
             title="Total Projects"
             value={stats.totalProjects}
             icon={MessageSquare}
-            change={stats.totalProjects > 0 ? `+${((stats.activeProjects / stats.totalProjects) * 100).toFixed(1)}%` : "0%"}
+            change={`+${((stats.totalProjects - stats.expiredProjects) / Math.max(stats.totalProjects, 1) * 100).toFixed(1)}%`}
             changeType="positive"
             color="blue"
             onClick={handleViewAllProjects}
@@ -500,7 +490,7 @@ const AdminDashboard = ({ onLogout }) => {
             title="Active Projects"
             value={stats.activeProjects}
             icon={CheckCircle}
-            change={stats.totalProjects > 0 ? `${((stats.activeProjects / stats.totalProjects) * 100).toFixed(1)}% of total` : "0%"}
+            change={`${(stats.activeProjects / Math.max(stats.totalProjects, 1) * 100).toFixed(1)}%`}
             changeType="positive"
             color="green"
             onClick={handleViewAllProjects}
@@ -541,41 +531,6 @@ const AdminDashboard = ({ onLogout }) => {
 
         {/* Charts Section */}
         <div className={styles.chartsSection}>
-          {/* Token Usage Chart */}
-          <div className={styles.chartCard}>
-            <div className={styles.chartHeader}>
-              <h3 className={styles.chartTitle}>Token Usage & API Calls</h3>
-              <div className={styles.chartActions}>
-                <button 
-                  className={styles.exportBtn}
-                  onClick={() => handleExportData('usage')}
-                >
-                  <Download className={styles.buttonIcon} />
-                  Export
-                </button>
-              </div>
-            </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={usageData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" />
-                <YAxis yAxisId="left" />
-                <YAxis yAxisId="right" orientation="right" />
-                <Tooltip 
-                  formatter={(value, name) => [
-                    name === 'tokens' ? `${value.toLocaleString()} tokens` : 
-                    name === 'requests' ? `${value.toLocaleString()} requests` :
-                    `₹${value}`,
-                    name === 'tokens' ? 'Tokens Used' : 
-                    name === 'requests' ? 'API Requests' : 'Cost'
-                  ]}
-                />
-                <Area yAxisId="left" type="monotone" dataKey="tokens" stackId="1" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} />
-                <Area yAxisId="right" type="monotone" dataKey="requests" stackId="2" stroke="#10B981" fill="#10B981" fillOpacity={0.6} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-
           {/* Project Status Distribution */}
           <div className={styles.chartCard}>
             <div className={styles.chartHeader}>
@@ -613,96 +568,83 @@ const AdminDashboard = ({ onLogout }) => {
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Revenue Trend Chart */}
-        <div className={styles.chartCard}>
-          <div className={styles.chartHeader}>
-            <h3 className={styles.chartTitle}>Revenue & Growth Trends</h3>
-            <div className={styles.chartActions}>
-              <button 
-                className={styles.exportBtn}
-                onClick={() => handleExportData('revenue')}
-              >
-                <Download className={styles.buttonIcon} />
-                Export
-              </button>
-            </div>
-          </div>
-          <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={revenueData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis yAxisId="left" />
-              <YAxis yAxisId="right" orientation="right" />
-              <Tooltip />
-              <Bar yAxisId="left" dataKey="revenue" fill="#3B82F6" />
-              <Line yAxisId="right" type="monotone" dataKey="growth" stroke="#10B981" strokeWidth={3} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Main Content Grid */}
-        <div className={styles.mainGrid}>
-          {/* Recent Projects Table */}
-          <div className={styles.tableCard}>
-            <div className={styles.tableHeader}>
-              <h3 className={styles.tableTitle}>Recent Projects</h3>
-              <div className={styles.tableActions}>
-                <div className={styles.searchContainer}>
-                  <Search className={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search projects..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className={styles.searchInput}
-                  />
-                </div>
+          {/* Token Usage Chart */}
+          <div className={styles.chartCard}>
+            <div className={styles.chartHeader}>
+              <h3 className={styles.chartTitle}>System Overview</h3>
+              <div className={styles.chartActions}>
                 <button 
-                  className={styles.viewAllBtn}
-                  onClick={handleViewAllProjects}
+                  className={styles.exportBtn}
+                  onClick={() => handleExportData('overview')}
                 >
-                  View All
+                  <Download className={styles.buttonIcon} />
+                  Export
                 </button>
               </div>
             </div>
-            
-            <div className={styles.tableContainer}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>Project</th>
-                    <th>Status</th>
-                    <th>Token Usage</th>
-                    <th>Created</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {projects
-                    .filter(project => 
-                      project.name.toLowerCase().includes(searchTerm.toLowerCase())
-                    )
-                    .map((project) => (
-                      <ProjectRow key={project.id} project={project} />
-                    ))}
-                </tbody>
-              </table>
+            <div className={styles.overviewStats}>
+              <div className={styles.overviewItem}>
+                <h4>Total Tokens</h4>
+                <p>{stats.tokensUsed.toLocaleString()}</p>
+              </div>
+              <div className={styles.overviewItem}>
+                <h4>Avg Response Time</h4>
+                <p>{stats.avgResponseTime}s</p>
+              </div>
+              <div className={styles.overviewItem}>
+                <h4>Success Rate</h4>
+                <p>{stats.successRate}%</p>
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Recent Activity */}
-          <div className={styles.activityCard}>
-            <div className={styles.activityHeader}>
-              <h3 className={styles.activityTitle}>Recent Activity</h3>
-              <button className={styles.viewAllBtn}>View All</button>
+        {/* Recent Projects Table */}
+        <div className={styles.tableCard}>
+          <div className={styles.tableHeader}>
+            <h3 className={styles.tableTitle}>Recent Projects</h3>
+            <div className={styles.tableActions}>
+              <div className={styles.searchContainer}>
+                <Search className={styles.searchIcon} />
+                <input
+                  type="text"
+                  placeholder="Search projects..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={styles.searchInput}
+                />
+              </div>
+              <button 
+                className={styles.viewAllBtn}
+                onClick={handleViewAllProjects}
+              >
+                View All
+              </button>
             </div>
-            <div className={styles.activityList}>
-              {recentActivity.map((activity) => (
-                <ActivityItem key={activity.id} activity={activity} />
-              ))}
-            </div>
+          </div>
+          
+          <div className={styles.tableContainer}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Status</th>
+                  <th>Token Usage</th>
+                  <th>Created</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects
+                  .filter(project => 
+                    project.name.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((project) => (
+                    <ProjectRow key={project.id || project.project_id} project={project} />
+                  ))}
+              </tbody>
+            </table>
           </div>
         </div>
 
