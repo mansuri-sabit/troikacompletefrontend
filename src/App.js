@@ -3,9 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ProjectDashboard from './pages/ProjectDashboard';
-import ProjectDetails from './pages/ProjectDetails';     // ✅ Add this import
-import WidgetTester from './pages/WidgetTester';         // ✅ Add this import
-import ProjectAnalytics from './pages/ProjectAnalytics'; // ✅ Add this import
+import ProjectDetails from './pages/ProjectDetails';
+import WidgetTester from './pages/WidgetTester';
+import ProjectAnalytics from './pages/ProjectAnalytics';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -77,7 +77,7 @@ function App() {
     <Router>
       <div className="App">
         <Routes>
-          {/* Authentication Route */}
+          {/* Public Routes */}
           <Route
             path="/login"
             element={
@@ -87,7 +87,7 @@ function App() {
             }
           />
 
-          {/* Main Admin Routes */}
+          {/* Protected Admin Routes */}
           <Route
             path="/admin/dashboard"
             element={
@@ -106,7 +106,6 @@ function App() {
             }
           />
 
-          {/* Project Detail Routes */}
           <Route
             path="/admin/projects/:projectId"
             element={
